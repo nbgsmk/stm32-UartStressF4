@@ -609,8 +609,13 @@ void BlinkerStart(void *argument)
   /* USER CODE BEGIN BlinkerStart */
 	/* Infinite loop */
 	for (;;) {
-		ledBlink(10, 2000);
-		osDelay(1);
+		int tajm = ulTaskNotifyTake(pdTRUE, 2000);
+		if (0 == tajm) {
+			ledBlink(50, 20);
+		} else {
+			ledBlinkC(10, 10);
+		}
+
 	}
   /* USER CODE END BlinkerStart */
 }
@@ -649,8 +654,10 @@ void taskToRpiStart(void *argument)
 		cnt = 0;
 		xQueueReceive(quToRpiHandle, &rxByte, portMAX_DELAY);
 		if (delayFlag) { osDelay(3000); }
+		xTaskNotifyGive(BlinkerHandle);
 		CDC_Transmit_FS(&rxByte, 1);
 		while (xQueueReceive(quToRpiHandle, &rxByte, 0) == pdPASS) {
+			cnt++;	// ovo je prvi bajt jer je izvan petlje vec primljen nulti
 			// unosim razne greske na raznim pozicijama
 			// pozicija je uvek drugacija jer cemu sluzi pogresan bajt ako cu posle da ga dropujem
 			// ili bi se ponistili drop i insert
@@ -669,7 +676,6 @@ void taskToRpiStart(void *argument)
 			};
 			CDC_Transmit_FS(&rxByte, 1);
 			osDelay(2);
-			cnt++;
 		}
 	}
   /* USER CODE END taskToRpiStart */
