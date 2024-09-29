@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdbool.h"
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "usbd_cdc_if.h"
@@ -152,6 +153,8 @@ const osSemaphoreAttr_t myCountingSem01_attributes = {
   .name = "myCountingSem01"
 };
 /* USER CODE BEGIN PV */
+
+
 
 /* USER CODE END PV */
 
@@ -520,10 +523,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BOARD_LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SW_delay_Pin SW_skipByte_Pin SW_insertByte_Pin SW_crcError_Pin
-                           SW_reserve_Pin */
-  GPIO_InitStruct.Pin = SW_delay_Pin|SW_skipByte_Pin|SW_insertByte_Pin|SW_crcError_Pin
-                          |SW_reserve_Pin;
+  /*Configure GPIO pins : SW_delay_Pin SW_dropByte_Pin SW_insertByte_Pin SW_dataError_Pin
+                           SW_headerError_Pin */
+  GPIO_InitStruct.Pin = SW_delay_Pin|SW_dropByte_Pin|SW_insertByte_Pin|SW_dataError_Pin
+                          |SW_headerError_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -533,6 +536,12 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+bool delayFlag;
+bool dropFlag;
+bool insertFlag;
+bool dataErrorFlag;
+bool headerErrorFlag;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) {
@@ -578,7 +587,12 @@ void StartDefaultTask(void *argument)
   /* USER CODE BEGIN 5 */
 	/* Infinite loop */
 	for (;;) {
-		osDelay(1);
+		delayFlag 		= (HAL_GPIO_ReadPin(SW_delay_GPIO_Port, 		SW_delay_Pin) == GPIO_PIN_RESET) ? true : false;
+		dropFlag 		= (HAL_GPIO_ReadPin(SW_dropByte_GPIO_Port, 		SW_dropByte_Pin) == GPIO_PIN_RESET) ? true : false;
+		insertFlag 		= (HAL_GPIO_ReadPin(SW_insertByte_GPIO_Port, 	SW_insertByte_Pin) == GPIO_PIN_RESET) ? true : false;
+		dataErrorFlag 	= (HAL_GPIO_ReadPin(SW_dataError_GPIO_Port, 	SW_dataError_Pin) == GPIO_PIN_RESET) ? true : false;
+		headerErrorFlag	= (HAL_GPIO_ReadPin(SW_headerError_GPIO_Port,	SW_headerError_Pin) == GPIO_PIN_RESET) ? true : false;
+		osDelay(200);
 	}
   /* USER CODE END 5 */
 }
@@ -629,14 +643,33 @@ void taskToRpiStart(void *argument)
 {
   /* USER CODE BEGIN taskToRpiStart */
 	uint8_t rxByte;
+	uint8_t cnt;
 	/* Infinite loop */
 	for (;;) {
+		cnt = 0;
 		xQueueReceive(quToRpiHandle, &rxByte, portMAX_DELAY);
-		osDelay(3000);
+		if (delayFlag) { osDelay(3000); }
 		CDC_Transmit_FS(&rxByte, 1);
 		while (xQueueReceive(quToRpiHandle, &rxByte, 0) == pdPASS) {
+			// unosim razne greske na raznim pozicijama
+			// pozicija je uvek drugacija jer cemu sluzi pogresan bajt ako cu posle da ga dropujem
+			// ili bi se ponistili drop i insert
+			if ( (headerErrorFlag) && (cnt == 1) ) {
+				rxByte++;							// unosi gresku u header (nulti i prvi bajt)
+			};
+			if ( (dataErrorFlag) && (cnt == 2) ) {
+				rxByte++;							// unosi gresku u podatke
+			};
+			if ( (dropFlag) && (cnt == 3) ) {
+				continue; 							// dropuje ovaj bajt
+			};
+			if ( (insertFlag) && (cnt == 4) ) {
+				uint8_t bzv = 55;
+				CDC_Transmit_FS(&bzv, 1); 			// insertuje neki bezvezni bajt
+			};
 			CDC_Transmit_FS(&rxByte, 1);
 			osDelay(2);
+			cnt++;
 		}
 	}
   /* USER CODE END taskToRpiStart */

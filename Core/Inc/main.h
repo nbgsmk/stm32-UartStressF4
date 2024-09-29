@@ -63,14 +63,14 @@ void Error_Handler(void);
 #define BOARD_LED_GPIO_Port GPIOC
 #define SW_delay_Pin GPIO_PIN_3
 #define SW_delay_GPIO_Port GPIOB
-#define SW_skipByte_Pin GPIO_PIN_4
-#define SW_skipByte_GPIO_Port GPIOB
+#define SW_dropByte_Pin GPIO_PIN_4
+#define SW_dropByte_GPIO_Port GPIOB
 #define SW_insertByte_Pin GPIO_PIN_5
 #define SW_insertByte_GPIO_Port GPIOB
-#define SW_crcError_Pin GPIO_PIN_6
-#define SW_crcError_GPIO_Port GPIOB
-#define SW_reserve_Pin GPIO_PIN_7
-#define SW_reserve_GPIO_Port GPIOB
+#define SW_dataError_Pin GPIO_PIN_6
+#define SW_dataError_GPIO_Port GPIOB
+#define SW_headerError_Pin GPIO_PIN_7
+#define SW_headerError_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
