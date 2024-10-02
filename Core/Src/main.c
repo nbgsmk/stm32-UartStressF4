@@ -682,24 +682,26 @@ void usbTerminalStart(void *argument)
 void taskToRpiStart(void *argument)
 {
   /* USER CODE BEGIN taskToRpiStart */
-	uint8_t rxByte;
+	uint8_t rxBr;
 	uint8_t cnt;
 	/* Infinite loop */
 	for (;;) {
 		cnt = 0;
-		xQueueReceive(quToRpiHandle, &rxByte, portMAX_DELAY);
-		osDelay(100);			// posle prvog bajta, cekam dok sigurno pristignu svi ostali i tek onda prosledjujem dalje
+		xQueueReceive(quToRpiHandle, &rxBr, portMAX_DELAY);
+		osDelay(20);			// posle prvog bajta, cekam dok sigurno pristignu svi ostali i tek onda prosledjujem dalje
 		if (delayFlag) {
 			osDelay(dlymS);
 		}
 		xTaskNotifyGive(BlinkerHandle);
-		HAL_UART_Transmit(&UART_RPI, &rxByte, 1, 5);
-//		CDC_Transmit_FS(&rxByte, 1);
+		while (HAL_UART_GetState(&UART_RPI) == HAL_UART_STATE_BUSY) {
+			__asm("NOP");
+		}
+		HAL_UART_Transmit(&UART_RPI, &rxBr, 1, 2);
 		//
-		// 0123456789
+		// 0123456789 .
 		//
-		while (xQueueReceive(quToRpiHandle, &rxByte, 0) == pdPASS) {
-			cnt++;	// ovo je prvi bajt jer je izvan petlje vec primljen nulti
+		while (xQueueReceive(quToRpiHandle, &rxBr, 0) == pdPASS) {
+			cnt++;	// izvan petlje je vec primljen nulti, sto xnaci da je prvi bajt
 			// unosim razne greske na raznim pozicijama
 			// pozicija je uvek drugacija jer cemu sluzi pogresan bajt ako cu posle da ga dropujem
 			// ili bi se ponistili drop i insert
@@ -708,20 +710,20 @@ void taskToRpiStart(void *argument)
 			};
 			if ((insertFlag) && (cnt == 4)) {
 				uint8_t bzv = 43;	// ascii '+'
-//				CDC_Transmit_FS(&bzv, 1);					// insertuje neki bezvezni bajt
-				HAL_UART_Transmit(&UART_RPI, &bzv, 1, 5);
+				HAL_UART_Transmit(&UART_RPI, &bzv, 1, 2);
 			};
 			if ((dataErrorFlag) && (cnt == 2)) {
-//				rxByte++;									// unosi gresku u podatke
-				rxByte = 101;								// ascii 'e'
+//				rxBr++;									// unosi gresku u podatke
+				rxBr = 101;								// ascii 'e'
 			};
 			if ((headerErrorFlag) && (cnt == 1)) {
-//				rxByte++;									// unosi gresku u header (nulti i prvi bajt)
-				rxByte = 72;								// ascii 'h'
+//				rxBr++;									// unosi gresku u header (nulti i prvi bajt)
+				rxBr = 72;								// ascii 'h'
 			};
-//			CDC_Transmit_FS(&rxByte, 1);
-			HAL_UART_Transmit(&UART_RPI, &rxByte, 1, 5);
-			osDelay(5);
+			while (HAL_UART_GetState(&UART_RPI) == HAL_UART_STATE_BUSY) {
+				__asm("NOP");
+			}
+			HAL_UART_Transmit(&UART_RPI, &rxBr, 1, 2);
 		}
 	}
   /* USER CODE END taskToRpiStart */
@@ -737,17 +739,20 @@ void taskToRpiStart(void *argument)
 void taskToSensorStart(void *argument)
 {
   /* USER CODE BEGIN taskToSensorStart */
-	uint8_t rxByte;
+	uint8_t rxBs;
 	/* Infinite loop */
 	for (;;) {
-		xQueueReceive(quToSenzorHandle, &rxByte, portMAX_DELAY);
-		osDelay(1);
-		HAL_UART_Transmit(&UART_SENZOR, &rxByte, 1, 10);
-//		CDC_Transmit_FS(&rxByte, 1);
-		while (xQueueReceive(quToSenzorHandle, &rxByte, 0) == pdPASS) {
-			osDelay(1);
-			HAL_UART_Transmit(&UART_SENZOR, &rxByte, 1, 10);
-//			CDC_Transmit_FS(&rxByte, 1);
+		xQueueReceive(quToSenzorHandle, &rxBs, portMAX_DELAY);
+		xTaskNotifyGive(BlinkerHandle);
+		while (HAL_UART_GetState(&UART_SENZOR) == HAL_UART_STATE_BUSY) {
+			__asm("NOP");
+		}
+		HAL_UART_Transmit(&UART_SENZOR, &rxBs, 1, 2);
+		while (xQueueReceive(quToSenzorHandle, &rxBs, 0) == pdPASS) {
+			while (HAL_UART_GetState(&UART_SENZOR) == HAL_UART_STATE_BUSY) {
+				__asm("NOP");
+			}
+			HAL_UART_Transmit(&UART_SENZOR, &rxBs, 1, 2);
 		}
 	}
   /* USER CODE END taskToSensorStart */
