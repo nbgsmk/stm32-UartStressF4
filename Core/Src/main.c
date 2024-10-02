@@ -76,15 +76,15 @@ const osThreadAttr_t usbTerminal_attributes = {
 osThreadId_t taskToRpiHandle;
 const osThreadAttr_t taskToRpi_attributes = {
   .name = "taskToRpi",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for taskToSensor */
 osThreadId_t taskToSensorHandle;
 const osThreadAttr_t taskToSensor_attributes = {
   .name = "taskToSensor",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for quToSenzor */
 osMessageQueueId_t quToSenzorHandle;
@@ -709,6 +709,9 @@ void taskToRpiStart(void *argument)
 				continue; 									// dropuje ovaj bajt
 			};
 			if ((insertFlag) && (cnt == 4)) {
+				while (HAL_UART_GetState(&UART_RPI) == HAL_UART_STATE_BUSY) {
+					__asm("NOP");
+				};
 				uint8_t bzv = 43;	// ascii '+'
 				HAL_UART_Transmit(&UART_RPI, &bzv, 1, 2);
 			};
@@ -718,7 +721,7 @@ void taskToRpiStart(void *argument)
 			};
 			if ((headerErrorFlag) && (cnt == 1)) {
 //				rxBr++;									// unosi gresku u header (nulti i prvi bajt)
-				rxBr = 72;								// ascii 'h'
+				rxBr = 104;								// ascii 'h'
 			};
 			while (HAL_UART_GetState(&UART_RPI) == HAL_UART_STATE_BUSY) {
 				__asm("NOP");
