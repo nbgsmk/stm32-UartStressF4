@@ -5,7 +5,6 @@
  *      Author: peca
  */
 
-
 #include <main.h>
 #include "FreeRTOS.h"
 #include "cmsis_os.h"
@@ -20,12 +19,11 @@
 //
 //}
 
-
-void ledOn(void){
+void ledOn(void) {
 	HAL_GPIO_WritePin(BOARD_LED_GPIO_Port, BOARD_LED_Pin, GPIO_PIN_RESET);
 }
 
-void ledOff(void){
+void ledOff(void) {
 	HAL_GPIO_WritePin(BOARD_LED_GPIO_Port, BOARD_LED_Pin, GPIO_PIN_SET);
 }
 
@@ -33,22 +31,22 @@ void ledTogl(void) {
 	HAL_GPIO_TogglePin(BOARD_LED_GPIO_Port, BOARD_LED_Pin);
 }
 
-void ledBlink(uint32_t ticksOn, uint32_t ticksOff){
+void ledBlink(uint32_t ticksOn, uint32_t ticksOff) {
 	ledOn();
 	osDelay(ticksOn);
 	ledOff();
 	osDelay(ticksOff);
 }
 
-void ledBlinkCount(uint32_t count, uint32_t ticksOn, uint32_t ticksOff){
-	for(uint32_t i = 0; i < count; i++){
+void ledBlinkCount(uint32_t count, uint32_t ticksOn, uint32_t ticksOff) {
+	for (uint32_t i = 0; i < count; i++) {
 		ledBlink(ticksOn, ticksOff);
 	}
 }
 
-
-void ledBlinkPeriod(uint32_t count, uint32_t ticksOn, uint32_t ticksOff, uint32_t ticksTotalPeriod){
-	for(uint32_t i = 0; i < count; i++){
+void ledBlinkPeriod(uint32_t count, uint32_t ticksOn, uint32_t ticksOff,
+		uint32_t ticksTotalPeriod) {
+	for (uint32_t i = 0; i < count; i++) {
 		ledBlink(ticksOn, ticksOff);
 	}
 	uint32_t treptanje = count * (ticksOn + ticksOff);
@@ -61,3 +59,15 @@ void ledBlinkPeriod(uint32_t count, uint32_t ticksOn, uint32_t ticksOff, uint32_
 	osDelay(ostatak);
 }
 
+void ledBlink_Rpi(uint32_t ticksOn, uint32_t ticksOff) {
+	HAL_GPIO_WritePin(UART1_RPI_LED_GPIO_Port, UART1_RPI_LED_Pin, GPIO_PIN_SET);
+	osDelay(ticksOn);
+	HAL_GPIO_WritePin(UART1_RPI_LED_GPIO_Port, UART1_RPI_LED_Pin, GPIO_PIN_RESET);
+	osDelay(ticksOff);
+}
+
+void ledBlink_RpiCount(uint32_t count, uint32_t ticksOn, uint32_t ticksOff) {
+	for (uint32_t i = 0; i < count; i++) {
+		ledBlink_Rpi(ticksOn, ticksOff);
+	}
+}

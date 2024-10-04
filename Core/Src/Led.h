@@ -21,8 +21,8 @@
 	void ledBlinkCount(uint32_t count, uint32_t ticksOn, uint32_t ticksOff);
 	void ledBlinkPeriod(uint32_t count, uint32_t ticksOn, uint32_t ticksOff, uint32_t ticksTotalPeriod);
 
-//	uint32_t millisecondsToTicks(uint32_t);
-
+	void ledBlink_Rpi(uint32_t ticksOn, uint32_t ticksOff);
+	void ledBlink_RpiCount(uint32_t count, uint32_t ticksOn, uint32_t ticksOff);
 //};
 
 #endif /* SRC_LED_H_ */

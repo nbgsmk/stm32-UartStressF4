@@ -86,6 +86,20 @@ const osThreadAttr_t taskToSensor_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for blinkRpi */
+osThreadId_t blinkRpiHandle;
+const osThreadAttr_t blinkRpi_attributes = {
+  .name = "blinkRpi",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for blinkSenzor */
+osThreadId_t blinkSenzorHandle;
+const osThreadAttr_t blinkSenzor_attributes = {
+  .name = "blinkSenzor",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for quToSenzor */
 osMessageQueueId_t quToSenzorHandle;
 const osMessageQueueAttr_t quToSenzor_attributes = {
@@ -167,6 +181,8 @@ void BlinkerStart(void *argument);
 void usbTerminalStart(void *argument);
 void taskToRpiStart(void *argument);
 void taskToSensorStart(void *argument);
+void blinkRpiStart(void *argument);
+void blinkSenzorStart(void *argument);
 void timer01Callback(void *argument);
 void timer02Callback(void *argument);
 
@@ -296,6 +312,12 @@ int main(void)
 
   /* creation of taskToSensor */
   taskToSensorHandle = osThreadNew(taskToSensorStart, NULL, &taskToSensor_attributes);
+
+  /* creation of blinkRpi */
+  blinkRpiHandle = osThreadNew(blinkRpiStart, NULL, &blinkRpi_attributes);
+
+  /* creation of blinkSenzor */
+  blinkSenzorHandle = osThreadNew(blinkSenzorStart, NULL, &blinkSenzor_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
@@ -514,12 +536,22 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BOARD_LED_GPIO_Port, BOARD_LED_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(UART1_RPI_LED_GPIO_Port, UART1_RPI_LED_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : BOARD_LED_Pin */
   GPIO_InitStruct.Pin = BOARD_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BOARD_LED_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : UART1_RPI_LED_Pin */
+  GPIO_InitStruct.Pin = UART1_RPI_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(UART1_RPI_LED_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : SW_delay_Pin SW_dropByte_Pin SW_insertByte_Pin SW_dataError_Pin
                            SW_headerError_Pin */
@@ -546,7 +578,9 @@ uint8_t rxu1;
 uint8_t rxu2;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+		// bajt dolazi iz Rpi (uart1)
 	if (huart->Instance == USART1) {
+
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 //		rxu1 = (uint8_t) (huart->Instance->DR & 0xFF);
 		xQueueSendFromISR(quToSenzorHandle, &rxu1, &xHigherPriorityTaskWoken);
@@ -557,6 +591,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 	}
 
+	// bajt dolazi iz senzora (uart2)
 	if (huart->Instance == USART2) {
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 //		rxu2 = (uint8_t) (huart->Instance->DR & 0xFF);
@@ -588,12 +623,12 @@ void StartDefaultTask(void *argument)
 	HAL_UART_Receive_IT(&huart2, &rxu2, 1);
 	/* Infinite loop */
 	for (;;) {
-		delayFlag =			(HAL_GPIO_ReadPin(SW_delay_GPIO_Port, 			SW_delay_Pin) == GPIO_PIN_RESET) ? true : false;
-		dropFlag =			(HAL_GPIO_ReadPin(SW_dropByte_GPIO_Port, 		SW_dropByte_Pin) == GPIO_PIN_RESET) ? true : false;
-		insertFlag =		(HAL_GPIO_ReadPin(SW_insertByte_GPIO_Port, 		SW_insertByte_Pin) == GPIO_PIN_RESET) ? true : false;
+		delayFlag = 		(HAL_GPIO_ReadPin(SW_delay_GPIO_Port, 			SW_delay_Pin) == GPIO_PIN_RESET) ? true : false;
+		dropFlag = 			(HAL_GPIO_ReadPin(SW_dropByte_GPIO_Port, 		SW_dropByte_Pin)== GPIO_PIN_RESET) ? true : false;
+		insertFlag = 		(HAL_GPIO_ReadPin(SW_insertByte_GPIO_Port, 		SW_insertByte_Pin) == GPIO_PIN_RESET) ? true : false;
 		dataErrorFlag =		(HAL_GPIO_ReadPin(SW_dataError_GPIO_Port, 		SW_dataError_Pin) == GPIO_PIN_RESET) ? true : false;
-		headerErrorFlag = 	(HAL_GPIO_ReadPin(SW_headerError_GPIO_Port,		SW_headerError_Pin) == GPIO_PIN_RESET) ? true : false;
-		dlymS = (delayFlag) ? 900 : 0;
+		headerErrorFlag =	(HAL_GPIO_ReadPin(SW_headerError_GPIO_Port, 	SW_headerError_Pin)	== GPIO_PIN_RESET) ? true : false;
+		dlymS = (delayFlag) ? 700 : 0;
 		osDelay(100);
 	}
   /* USER CODE END 5 */
@@ -611,12 +646,13 @@ void BlinkerStart(void *argument)
   /* USER CODE BEGIN BlinkerStart */
 	/* Infinite loop */
 	for (;;) {
-		int tajm = ulTaskNotifyTake(pdTRUE, 5000);
-		if (0 == tajm) {
-			ledBlinkCount(10, 1, 19);// 10 puta (1:19 duty cycle) = 200mS smanjenim intenzitetom
-		} else {
-			ledBlink(10, 10);
-		}
+//		int tajm = ulTaskNotifyTake(pdTRUE, 5000);
+//		if (0 == tajm) {
+//			ledBlinkCount(10, 1, 19);// 10 puta (1:19 duty cycle) = 200mS smanjenim intenzitetom
+//		} else {
+//			ledBlink(10, 10);
+//		}
+		osDelay(1);
 
 	}
   /* USER CODE END BlinkerStart */
@@ -643,28 +679,34 @@ void usbTerminalStart(void *argument)
 
 		char num[5] = "     ";
 		itoa(dlymS, num, 10);
+		osDelay(2);
 
+		(delayFlag) ? 		CDC_Transmit_FS((uint8_t*) "dly=", 4) : (void) (0);
 		osDelay(2);
-		(delayFlag) ? 		CDC_Transmit_FS((uint8_t*)"dly=", 4) :  (void)(0);
+
+		(delayFlag) ? 		CDC_Transmit_FS((uint8_t*) &num, sizeof(num)) : (void) (0);
 		osDelay(2);
-		(delayFlag) ? 		CDC_Transmit_FS((uint8_t*)&num, sizeof(num)) : (void)(0);
+
+		(delayFlag) ? 		CDC_Transmit_FS((uint8_t*) " ", 1) : (void) (0);
 		osDelay(2);
-		(delayFlag) ? 		CDC_Transmit_FS((uint8_t*)" ", 1) : (void)(0);
+
+		(dropFlag) ? 		CDC_Transmit_FS((uint8_t*) "drop ", 5) : (void) (0);
 		osDelay(2);
-		(dropFlag) ? 		CDC_Transmit_FS((uint8_t*)"drop ", 5) : (void)(0);
+
+		(insertFlag) ? 		CDC_Transmit_FS((uint8_t*) "ins ", 4) : (void) (0);
 		osDelay(2);
-		(insertFlag) ? 		CDC_Transmit_FS((uint8_t*)"ins ", 4) : (void)(0);
+
+		(dataErrorFlag) ? 	CDC_Transmit_FS((uint8_t*) "err ", 4) : (void) (0);
 		osDelay(2);
-		(dataErrorFlag) ? 	CDC_Transmit_FS((uint8_t*)"err ", 4) : (void)(0);
-		osDelay(2);
-		(headerErrorFlag) ?	CDC_Transmit_FS((uint8_t*)"hdr ", 4) : (void)(0);
+
+		(headerErrorFlag) ? CDC_Transmit_FS((uint8_t*) "hdr ", 4) : (void) (0);
 
 		if (delayFlag || dropFlag || insertFlag || dataErrorFlag || headerErrorFlag) {
 			osDelay(2);
-			CDC_Transmit_FS((uint8_t*)"\n\r", 2);
+			CDC_Transmit_FS((uint8_t*) "\n\r", 2);
 		} else {
 			osDelay(2);
-			CDC_Transmit_FS((uint8_t*)"pass-through\r", sizeof("pass-through\r"));
+			CDC_Transmit_FS((uint8_t*) "pass-through\r", sizeof("pass-through\r"));
 		}
 
 		osDelay(100);
@@ -688,11 +730,11 @@ void taskToRpiStart(void *argument)
 	for (;;) {
 		cnt = 0;
 		xQueueReceive(quToRpiHandle, &rxBr, portMAX_DELAY);
-		osDelay(20);			// posle prvog bajta, cekam dok sigurno pristignu svi ostali i tek onda prosledjujem dalje
+		osDelay(20);// posle prvog bajta, cekam dok sigurno pristignu svi ostali i tek onda prosledjujem dalje
 		if (delayFlag) {
 			osDelay(dlymS);
 		}
-		xTaskNotifyGive(BlinkerHandle);
+		xTaskNotifyGive(blinkRpiHandle);
 		while (HAL_UART_GetState(&UART_RPI) == HAL_UART_STATE_BUSY) {
 			__asm("NOP");
 		}
@@ -701,7 +743,7 @@ void taskToRpiStart(void *argument)
 		// 0123456789 .
 		//
 		while (xQueueReceive(quToRpiHandle, &rxBr, 0) == pdPASS) {
-			cnt++;	// izvan petlje je vec primljen nulti, sto xnaci da je prvi bajt
+			cnt++;// izvan petlje je vec primljen nulti, sto xnaci da je prvi bajt
 			// unosim razne greske na raznim pozicijama
 			// pozicija je uvek drugacija jer cemu sluzi pogresan bajt ako cu posle da ga dropujem
 			// ili bi se ponistili drop i insert
@@ -746,7 +788,7 @@ void taskToSensorStart(void *argument)
 	/* Infinite loop */
 	for (;;) {
 		xQueueReceive(quToSenzorHandle, &rxBs, portMAX_DELAY);
-		xTaskNotifyGive(BlinkerHandle);
+		xTaskNotifyGive(blinkSenzorHandle);
 		while (HAL_UART_GetState(&UART_SENZOR) == HAL_UART_STATE_BUSY) {
 			__asm("NOP");
 		}
@@ -759,6 +801,50 @@ void taskToSensorStart(void *argument)
 		}
 	}
   /* USER CODE END taskToSensorStart */
+}
+
+/* USER CODE BEGIN Header_blinkRpiStart */
+/**
+ * @brief Function implementing the blinkRpi thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_blinkRpiStart */
+void blinkRpiStart(void *argument)
+{
+  /* USER CODE BEGIN blinkRpiStart */
+	/* Infinite loop */
+	for (;;) {
+		int tajm = ulTaskNotifyTake(pdTRUE, 5000);
+		if (0 == tajm) {
+			ledBlink_RpiCount(10, 1, 29);// 10 puta @ 1:30 duty cycle ~ 300mS smanjenim intenzitetom
+		} else {
+			ledBlink_Rpi(3, 1);
+		}
+	}
+  /* USER CODE END blinkRpiStart */
+}
+
+/* USER CODE BEGIN Header_blinkSenzorStart */
+/**
+ * @brief Function implementing the blinkSenzor thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_blinkSenzorStart */
+void blinkSenzorStart(void *argument)
+{
+  /* USER CODE BEGIN blinkSenzorStart */
+	/* Infinite loop */
+	for (;;) {
+		int tajm = ulTaskNotifyTake(pdTRUE, 5000);
+		if (0 == tajm) {
+			ledBlinkCount(10, 1, 29);// 10 puta @ 1:30 duty cycle = 300mS smanjenim intenzitetom
+		} else {
+			ledBlink(5, 2);
+		}
+	}
+  /* USER CODE END blinkSenzorStart */
 }
 
 /* timer01Callback function */

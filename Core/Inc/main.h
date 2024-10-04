@@ -61,6 +61,8 @@ void Error_Handler(void);
 #define UART_SENZOR huart2
 #define BOARD_LED_Pin GPIO_PIN_13
 #define BOARD_LED_GPIO_Port GPIOC
+#define UART1_RPI_LED_Pin GPIO_PIN_8
+#define UART1_RPI_LED_GPIO_Port GPIOA
 #define SW_delay_Pin GPIO_PIN_3
 #define SW_delay_GPIO_Port GPIOB
 #define SW_dropByte_Pin GPIO_PIN_4
